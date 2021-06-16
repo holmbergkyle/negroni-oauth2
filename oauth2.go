@@ -135,6 +135,37 @@ func LinkedIn(config *Config) negroni.Handler {
 	return NewOAuth2Provider(config, authUrl, tokenUrl)
 }
 
+type MyResponseWriter struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func NewMyResponseWriter(w http.ResponseWriter) *MyResponseWriter {
+	return &MyResponseWriter{ResponseWriter: w}
+}
+
+func (w *MyResponseWriter) Status() int {
+	return w.status
+}
+
+func (w *MyResponseWriter) Write(p []byte) (n int, err error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *MyResponseWriter) WriteHeader(code int) {
+	w.ResponseWriter.WriteHeader(code)
+	// Check after in case there's error handling in the wrapped ResponseWriter.
+	if w.wroteHeader {
+		return
+	}
+	w.status = code
+	w.wroteHeader = true
+}
+
 // Returns a generic OAuth 2.0 backend endpoint.
 func NewOAuth2Provider(config *Config, authUrl, tokenUrl string) negroni.HandlerFunc {
 	c := &oauth2.Config{
@@ -150,6 +181,9 @@ func NewOAuth2Provider(config *Config, authUrl, tokenUrl string) negroni.Handler
 
 	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		s := sessions.GetSession(r)
+
+		myWriter := NewMyResponseWriter(w)
+		myWriter.Header()
 
 		if r.Method == "GET" {
 			switch r.URL.Path {
@@ -224,7 +258,7 @@ func newState() string {
 
 func login(config *oauth2.Config, s sessions.Session, w http.ResponseWriter, r *http.Request) {
 	next := extractPath(r.URL.Query().Get(keyNextPage))
-
+	log.Println("in login, request is: ", r)
 	if s.Get(keyToken) == nil {
 		// User is not logged in.
 		if next == "" {
@@ -233,11 +267,13 @@ func login(config *oauth2.Config, s sessions.Session, w http.ResponseWriter, r *
 
 		state := newState()
 		// store the next url and state token in the session
+		log.Println("in login, __session is: ", s.Get("__session"))
 		s.Set(keyState, state)
 		s.Set(keyNextPage, next)
 		http.Redirect(w, r, config.AuthCodeURL(state, oauth2.AccessTypeOffline), http.StatusFound)
 		return
 	}
+
 	// No need to login, redirect to the next page.
 	http.Redirect(w, r, next, http.StatusFound)
 }
@@ -254,6 +290,7 @@ func handleOAuth2Callback(config *oauth2.Config, s sessions.Session, w http.Resp
 	//verify that the provided state is the state we generated
 	//if it is not, then redirect to the error page
 	originalState := s.Get(keyState)
+	log.Println("in handleoauthcallback, __session is: ", s.Get("__session"))
 	log.Println("State is: ", providedState, "  original is: ", originalState)
 	log.Println("session: ", s)
 	log.Println("request: ", r)
