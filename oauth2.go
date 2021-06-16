@@ -255,6 +255,8 @@ func handleOAuth2Callback(config *oauth2.Config, s sessions.Session, w http.Resp
 	//if it is not, then redirect to the error page
 	originalState := s.Get(keyState)
 	log.Println("State is: ", providedState, "  original is: ", originalState)
+	log.Println("session: ", s)
+	log.Println("request: ", r)
 	if providedState != originalState {
 		http.Redirect(w, r, PathError, http.StatusFound)
 		return
