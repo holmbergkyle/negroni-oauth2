@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -253,6 +254,7 @@ func handleOAuth2Callback(config *oauth2.Config, s sessions.Session, w http.Resp
 	//verify that the provided state is the state we generated
 	//if it is not, then redirect to the error page
 	originalState := s.Get(keyState)
+	log.Println("State is: ", providedState, "  original is: ", originalState)
 	if providedState != originalState {
 		http.Redirect(w, r, PathError, http.StatusFound)
 		return
@@ -264,6 +266,7 @@ func handleOAuth2Callback(config *oauth2.Config, s sessions.Session, w http.Resp
 	if err != nil {
 		// Pass the error message, or allow dev to provide its own
 		// error handler.
+		log.Println("error in config.exchange, code: ", code)
 		http.Redirect(w, r, PathError, http.StatusFound)
 		return
 	}
